@@ -1,0 +1,53 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  # Use AlmaLinux 9 as the base box
+  config.vm.box = "almalinux/9"
+  
+  # Configure private network with a specific IP
+  config.vm.network "private_network", ip: "192.168.56.10"
+  
+  # Configure VirtualBox provider
+  config.vm.provider "virtualbox" do |vb|
+    # Set VM name for better identification
+    vb.name = "AlmaLinux 9 Docker VM"
+    
+    # Allocate 8GB of RAM
+    vb.memory = 8192
+    
+    # Allocate 2 CPU cores (can be adjusted as needed)
+    vb.cpus = 2
+  end
+  
+  # Shell provisioning script
+  config.vm.provision "shell", inline: <<-SHELL
+    echo "Updating system and installing dependencies..."
+    sudo dnf install -y git curl
+    echo "Installing Docker..."
+    sudo dnf config-manager --add-repo=https://download.docker.com/linux/centos/docker-ce.repo
+    sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    echo "Starting and enabling Docker service..."
+    sudo systemctl enable --now docker
+    sudo usermod -aG docker vagrant
+    echo "Installing Docker Compose..."
+    sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    sudo chmod +x /usr/local/bin/docker-compose
+    sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose  # Ensure it's in PATH
+    echo "Checking Docker and Compose Versions..."
+    docker --version
+    docker-compose --version
+    echo "Cloning the application repository..."
+    cd /home/vagrant
+    git clone https://github.com/thedbadmin/curd_App.git || true
+    cd curd_App
+    echo "Fixing directory permissions..."
+    sudo chown -R vagrant:vagrant /home/vagrant/curd_App
+    echo "Applying new group permissions..."
+    newgrp docker <<EONG
+    echo "Starting application with Docker Compose..."
+    cd /home/vagrant/curd_App
+    /usr/local/bin/docker-compose up --build -d
+    EONG
+  SHELL
+end
